@@ -1,0 +1,330 @@
+{
+	"GROUP_ACTION_EXECUTOR": [{
+		"altSequence": 1,
+		"actions": [{
+				"actionName": "copyRequestIntoData",
+				"actionType": "DataManipulationAction",
+				"comments": "Copy input request data so that can be used for Pharmacy offer identification",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(inputOffReg::($$requestParameters))",
+				"priority": 1,
+				"order": 1
+			},
+			{
+				"actionName": "triggerOIFetchAttrsEvent",
+				"actionType": "DataAction",
+				"services": [{
+					"serviceName": "EVENTPROCESSINGONMAP",
+					"serviceType": "TELLURIDE",
+					"params": "eventType:baseOIFetchAttributes"
+				}],
+				"priority": 2,
+				"order": 1
+			},
+			{
+				"actionName": "triggerSegmentEvent",
+				"actionType": "DataAction",
+				"dependentActionName": "triggerOIFetchAttrsEvent",
+				"services": [{
+					"serviceName": "EVENTPROCESSINGONMAP",
+					"serviceType": "TELLURIDE",
+					"params": "eventType:baseSegment",
+					"responseType": "JSON"
+				}],
+				"priority": 3,
+				"order": 1
+			},
+			{
+				"actionName": "limitSegmentBySubject",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "triggerSegmentEvent",
+				"serviceName": "FSDL",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "filterBy::['==',['1','1']]--limitBy::[1,{}]",
+				"priority": 4,
+				"order": 1
+			},
+			{
+				"actionName": "buildSegmentDummyData",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "triggerOIFetchAttrsEvent",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(segments::{'segmentName':'email_batch_segment'})||##assignTo(segmentIds::($$OIFetchAttributes.member.memberDetails.nSegments.nsegment))||##assignTo(searsAttributes::($$OIFetchAttributes.member.memberDetails.searsAttribute))",
+				"priority": 5,
+				"order": 1
+			},
+			{
+				"actionName": "getOffersArray",
+				"actionType": "DataManipulationAction",
+				"comments": "Get XR Offer details from GRP response",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(offerArray::($$offers))||##assignTo(offerArray1::($$offers))",
+				"priority": 6,
+				"order": 1
+			},
+			{
+				"actionName": "filterOfferForRegistration",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "getOffersArray",
+				"alwaysExecute": false,
+				"comment": "Get the SOP offers json array",
+				"serviceName": "FSDLByCriteria",
+				"serviceType": "DATA_MANIPULATION",
+				"params": {
+					"criteria": "offerArray",
+					"value": "filterBy::['==', ['_row.register', 'Y']]"
+				},
+				"appendToResponse": {
+					"memberNumber": "($$memberNumber)"
+				},
+				"priority": 7,
+				"order": 1
+			},
+			{
+				"actionName": "offerRegistration",
+				"actionType": "DataAction",
+				"alwaysExecute": false,
+				"dependentActionName": "filterOfferForRegistration",
+				"services": [{
+					"serviceName": "soapServiceInvoker",
+					"serviceType": "SOAP",
+					"params": "requestXML::<soap:Envelope xmlns:soap='http://www.w3.org/2003/05/soap-envelope' xmlns:web='http://www.epsilon.com/webservices/'><soap:Header/><soap:Body><web:OfferRegistration><web:MessageVersion>01</web:MessageVersion><web:ActionTag>A</web:ActionTag><web:MemberNumber>($$memberNumber)</web:MemberNumber><web:RequestorID>TECG</web:RequestorID><web:AssociateID>000000000000</web:AssociateID><web:RegisterNumber>001</web:RegisterNumber><web:StoreNumber>0</web:StoreNumber><web:RegistrationStartDTTM>($$RegistrationStartDTTM)</web:RegistrationStartDTTM><web:RegistrationEndDTTM>($$RegistrationEndDTTM)</web:RegistrationEndDTTM><web:MemberOfferReset>N</web:MemberOfferReset><web:OfferMemberGroupList><web:OfferMemberGroup><web:OfferCode>($$OfferCode)</web:OfferCode><web:GroupName>($$GroupName)</web:GroupName></web:OfferMemberGroup></web:OfferMemberGroupList></web:OfferRegistration></soap:Body></soap:Envelope>||endpoint::http://trqateleijbos01.intra.searshc.com:8480/tellurideAS/Bank||wsdlLink::http://trqateleijbos01.intra.searshc.com:8480/tellurideAS/Bank?wsdl||namespace::http://www.epsilon.com/webservices||serviceName::StandardMultiAPIv10||operationName::offers||wsdlversion::1.2",
+					"responseType": "JSON"
+				}],
+				"recursive": true,
+				"priority": 8,
+				"order": 1
+			},
+			{
+				"actionName": "Response",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "offerRegistration",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"recursive": true,
+				"params": "##assignTo(Offer_Code::($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.OfferCode))",
+				"appendToResponse": {
+					"Status": "##evaluateIfCondition(['!=',['($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.Status)','']]%'($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.Status)'%##evaluateIfCondition(['!=',['($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.Status)','']]@'($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.Status)'@'99'@delimiter=@)%delimiter=%);",
+					"StatusText": "##evaluateIfCondition(['!=',['($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.StatusText)','']]%'($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.StatusText)'%##evaluateIfCondition(['!=',['($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.StatusText)','']]@'($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.StatusText)'@'Request offerCode is not associated with CAMPAIGN_ID'@delimiter=@)%delimiter=%);"
+				},
+				"priority": 9,
+				"order": 1
+			},
+			{
+				"actionName": "checkResponseDataEmpty",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "offerRegistration",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"condition": "facts::Response||rules::['&&',[['==',['Status','']]]]",
+				"params": "##assignTo(Status::($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.Status))||##assignTo(StatusText::($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Additional.StatusText))||##assignTo(OfferCode::($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.OfferCode))",
+				"recursive": true,
+				"priority": 10,
+				"order": 1
+			},
+			{
+				"actionName": "addDefaultReponse",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "offerRegistration",
+				"serviceName": "buildJson",
+				"condition": "facts::checkResponseDataEmpty||rules::['&&',[['==',['Status','']]]]",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(Status::99)||##assignTo(StatusText::Request offerCode is not associated with CAMPAIGN_ID)||##assignTo(OfferCode::($$Envelope.Body.OfferRegistrationResponse.OfferRegistrationResult.Epsilon.Response.OfferRegistrationReply.offerMemberGroupList.OfferMemberGroupResponse.OfferCode))",
+				"recursive": true,
+				"priority": 11,
+				"order": 1
+			},
+			{
+				"actionName": "filterNonRegistrationOffers",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "getOffersArray",
+				"alwaysExecute": false,
+				"comment": "Get the SOP offers json array",
+				"serviceName": "FSDLByCriteria",
+				"serviceType": "DATA_MANIPULATION",
+				"params": {
+					"criteria": "offerArray1",
+					"value": "filterBy::['==', ['_row.register', 'N']]"
+				},
+				"appendToResponse": {
+					"memberNumber": "($$memberNumber)"
+				},
+				"priority": 12,
+				"order": 1
+			},
+			{
+				"actionName": "addReponseForNonRegisteredOffers",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "filterNonRegistrationOffers",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(Status::99)||##assignTo(StatusText::Register flag is N so offer does not qualify for registration)||##assignTo(OfferCode::($$OfferCode))",
+				"recursive": true,
+				"priority": 13,
+				"order": 1
+			},
+			{
+				"actionName": "mergeResponse",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "Response,addReponseForNonRegisteredOffers",
+				"serviceName": "merge",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "",
+				"responseType": "JSON",
+				"recursive": true,
+				"responseAction": true,
+				"priority": 14,
+				"order": 1
+			},
+			{
+				"actionName": "deriveAdditionalAttr",
+				"actionType": "DataManipulationAction",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"dependentActionName": "triggerOIFetchAttrsEvent,buildSegmentDummyData,limitSegmentBySubject",
+				"params": "##assignTo(MEMBER_NUMBER::($$memberNumber))||##assignTo(CAMPAIGN_ID::($$segmentCode))||##assignTo(FST_NM::($$OIFetchAttributes.member.memberDetails.firstName))||##assignTo(LST_NM::($$OIFetchAttributes.member.memberDetails.lastName))||##assignTo(TREATMENT_CODE::($$segmentCode))||##assignTo(OFFERCODE1::($$OfferRegistration.OfferCode))||##assignTo(POSTAL_CODE::($$OIFetchAttributes.member.memberDetails.zipCode))||##assignTo(TELLU_OFFR_CD::($$versionId))||##assignTo(EML_AD_ID::($$EML_AD_ID))||##assignTo(EML_AD::($$email)) || ##assignTo(ACTIVE_STATUS_FLAG::($$searsAttributes.active_status_flag)) || ##assignTo(MAXX_STATUS_FLAG::($$searsAttributes.maxx_status_flag)) || ##assignTo(DMA_CODE::($$searsAttributes.dma_code)) || ##assignTo(CLOSEST_STORE_NBR::($$searsAttributes.closest_store_nbr)) || ##assignTo(TAG1::($$searsAttributes.tag1)) || ##assignTo(TAG2::($$searsAttributes.tag2)) || ##assignTo(TAG3::($$searsAttributes.tag3)) || ##assignTo(TAG4::($$searsAttributes.tag4)) || ##assignTo(TAG5::($$searsAttributes.tag5)) || ##assignTo(COMCAST_EML_IND::($$searsAttributes.comcast_eml_ind)) || ##assignTo(SYWR_PROMOS_LAST_OPTINOUT_DT::($$searsAttributes.sywr_promos_last_optinout_dt)) || ##assignTo(MAXX_END_DT::($$searsAttributes.maxx_end_dt)) || ##assignTo(KMART_PRIMARY_STORE::($$searsAttributes.kmart_primary_store)) || ##assignTo(STATE_CODE::($$searsAttributes.state_code)) || ##assignTo(SEARS_PRIMARY_STORE::($$searsAttributes.sears_primary_store)) || ##assignTo(TRIFECTA_CITI_POINTS::($$searsAttributes.trifecta_citi_points)) || ##assignTo(APPARREL_DATA::($$searsAttributes.apparrel_data)) || ##assignTo(APPARREL_SPENT_AMOUNT::($$searsAttributes.apparrel_spent_amount)) || ##assignTo(APPARREL_SHOPPER_STATUS::($$searsAttributes.apparrel_shopper_status))",
+				"appendToResponse": {
+					"CONTENT12": "",
+					"CONTENT13": "",
+					"CONTENT16": "9999",
+					"CONTENT20": "null",
+					"CSO_ID ": "",
+					"TELLU_OFFR_STA_DT": "##formatDateWithSource(($$OfferRegistration.RegistrationStartDTTM),yyyy-MM-dd'T'hh:mm:ss,yyyy-MM-dd hh:mm:ss);",
+					"TELLU_OFFR_END_DT": "##formatDateWithSource(($$OfferRegistration.RegistrationEndDTTM),yyyy-MM-dd'T'hh:mm:ss,yyyy-MM-dd hh:mm:ss);",
+					"DF_SEND_DT": "##formatDateWithSource(($$DF_SEND_DT),MM/dd/yyyy,yyyy-MM-dd);",
+					"CONTENT10": "##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,12395,.*']]~'Y'~'N'~delimiter=~);",
+					"CONTENT8": "",
+					"CONTENT9": "",
+					"CONTENT6": "##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14174,.*']]~'($$memberNumber)'~''~delimiter=~);",
+					"CONTENT5": " ##formatNumber(##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14285,.*']]~1~##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14286,.*']]!2!##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14287,.*']]@3@0@delimiter=@)!delimiter=!)~delimiter=~)%''%delimiter=%);",
+					"SIDCODE": "IOx##formatDateWithSource(($$DF_SEND_DT),yyyy-MM-dd,yyyyMMdd);SYRPRMWKLx0195631x($$CAMPAIGN_ID)($$segmentCode)",
+					"DF_SEG_DS": "IOx##formatDateWithSource(($$DF_SEND_DT),yyyy-MM-dd,yyyyMMdd);SYRPRMWKLx0195631x($$CAMPAIGN_ID)($$segmentCode)",
+					"DF_OPT_TYPE": "SC",
+					"CAMPAIGN_ID": "($$CAMPAIGN_ID)",
+					"DF_SEGMENT_CD": "($$segmentCode)",
+					"EXECUTION_NUMBER": "($$Execution_Number)",
+					"GAS_FLG": "##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14075,.*']]%'Y'%##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1458.,.*']]~'Y'~##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1459[0-4],.*']]!'Y'!##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1417[0,3],.*']]@'Y'@'N'@delimiter=@)!delimiter=!)~delimiter=~)%delimiter=%);",
+					"DINING_FLG": "##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14[0-1][7][1,3],.*']]%'Y'%##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1455.,.*']]~'Y'~##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1456[0-4],.*']]!'Y'!##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14168,.*']]@'Y'@'N'@delimiter=@)!delimiter=!)~delimiter=~)%delimiter=%);",
+					"GRC_FLG": "##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14[0-1][7][2,4],.*']]%'Y'%##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1457.,.*']]~'Y'~##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,1456[5-9],.*']]!'Y'!##evaluateIfCondition(['LIKE',['($$segmentIds)','.*,14169,.*']]@'Y'@'N'@delimiter=@)!delimiter=!)~delimiter=~)%delimiter=%);",
+					"CAMPAIGNCODE": "LYSWE1956313",
+					"DF_IMPACT_ID": "1968808",
+					"phoneNum": "($$OIFetchAttributes.member.memberDetails.phoneNumbers.phoneNumber)"
+				},
+				"priority": 17,
+				"order": 1
+			},
+			{
+				"actionName": "outputLogsHDR",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "deriveAdditionalAttr",
+				"captureLogs": "logTypeAttr::SYWR_EMAIL_BATCH_HDR||shardParamType::member||shardParamValue::($$memberNumber)",
+				"serviceName": "mergeIntoData",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(CAMPAIGNCODE1::'LYSWE1956313')",
+				"appendToResponse": {
+					"MEMBER_NUMBER": "($$memberNumber)",
+					"RESPONSE_ID": "##generateLogId(response_id_key);",
+					"CONTENT7": "##evaluateIfCondition(['LIKE',['($$phoneNum)','[0-9]{11}']]~xxx-xxx-##substr('($$phoneNum)',7,11)~'($$phoneNum)'~delimiter=~);"
+				},
+				"priority": 19,
+				"order": 1
+			},
+			{
+				"actionName": "getOffersArrayForDTL",
+				"actionType": "DataManipulationAction",
+				"comments": "Get XR Offer details from GRP response",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(offersInArray::($$offers))",
+				"priority": 20,
+				"order": 1
+			},
+			{
+				"actionName": "getArrayForDTLLogs",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "getOffersArrayForDTL",
+				"alwaysExecute": false,
+				"comment": "Get the SOP offers json array",
+				"serviceName": "FSDLByCriteria",
+				"serviceType": "DATA_MANIPULATION",
+				"params": {
+					"criteria": "offersInArray",
+					"value": "filterBy::['==', ['1', '1']]"
+				},
+				"priority": 21,
+				"order": 1
+			},
+			{
+				"actionName": "FSDLforDTLLogs",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "getArrayForDTLLogs",
+				"serviceName": "FSDL",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "filterBy::['==',['1','1']]",
+				"priority": 22,
+				"order": 1
+			},
+			{
+				"actionName": "getRedisDataForCampaign",
+				"actionType": "DataAction",
+				"dependentActionName": "getArrayForDTLLogs",
+				"comments": "Get data from redis for givan campaign",
+				"recursive": true,
+				"services": [{
+					"serviceName": "getData",
+					"serviceType": "REDIS",
+					"params": "redisClient::redisClientForOfferIssuance||cacheKey::($$OfferCode)||keyAlias::OfferCode||valueAlias::versionId||needKeys::true",
+					"responseType": "JSON"
+				}],
+				"priority": 23,
+				"order": 1
+			},
+			{
+				"actionName": "mergeRedisResponse",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "getRedisDataForCampaign",
+				"serviceName": "merge",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "mergeData",
+				"priority": 24,
+				"order": 1
+			},
+			{
+				"actionName": "AppendMatchingAttr",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "FSDLforDTLLogs,mergeRedisResponse",
+				"comments": "Append the matching Attributes",
+				"serviceName": "appendMatchingAttr",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "criteria::OfferCode==OfferCode@@mergeParams::versionId:$versionId@@delimiter=@@",
+				"priority": 26,
+				"order": 1
+			},
+			{
+				"actionName": "outputLogsDTL",
+				"actionType": "DataManipulationAction",
+				"dependentActionName": "AppendMatchingAttr",
+				"condition": "facts::data||rules::['!=',['versionId','']]",
+				"recursive": true,
+				"alwaysExecute": false,
+				"captureLogs": "logTypeAttr::SYWR_EMAIL_BATCH_DTL||shardParamType::member||shardParamValue::($$memberNumber)",
+				"serviceName": "buildJson",
+				"serviceType": "DATA_MANIPULATION",
+				"params": "##assignTo(CSOIDPOSITION::'($$CSO_ID_Position)')",
+				"appendToResponse": {
+					"OFFERSTARTDT": "##formatDateWithSource(($$RegistrationStartDTTM),yyyy-MM-dd'T'hh:mm:ss,yyyy-MM-dd hh:mm:ss);",
+					"OFFERENDDT": "##formatDateWithSource(($$RegistrationEndDTTM),yyyy-MM-dd'T'hh:mm:ss,yyyy-MM-dd hh:mm:ss);",
+					"OFFERCODE": "($$OfferCode)",
+					"DF_SEND_DT": "##formatDateWithSource(($$DF_SEND_DT),MM/dd/yyyy,yyyy-MM-dd);",
+					"VERSIONID": "($$versionId)",
+					"RESPONSE_ID": "##generateLogId(response_id_key);"
+				},
+				"priority": 27,
+				"order": 1
+			}
+		]
+	}]
+}
