@@ -1,0 +1,30 @@
+-------------------------------------------------------------------------------
+Test set: com.cl.it.queue.impl.CustomQueueTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 0.005 sec <<< FAILURE!
+com.cl.it.queue.impl.CustomQueueTest.testCustomPriorityQueue()  Time elapsed: 0.002 sec  <<< FAILURE!
+java.lang.Error: Unresolved compilation problems: 
+	Test cannot be resolved to a type
+	The method assertNotNull(PriorityQueue<QueueItem<Integer>>) is undefined for the type CustomQueueTest<T>
+	The method assertNotNull(Semaphore) is undefined for the type CustomQueueTest<T>
+	The method assertNotNull(ConcurrentHashMap<Integer,Semaphore>) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	at com.cl.it.queue.impl.CustomQueueTest.testCustomPriorityQueue(CustomQueueTest.java:22)
+
+com.cl.it.queue.impl.CustomQueueTest.testEnqueue()  Time elapsed: 0 sec  <<< FAILURE!
+java.lang.Error: Unresolved compilation problems: 
+	Test cannot be resolved to a type
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	at com.cl.it.queue.impl.CustomQueueTest.testEnqueue(CustomQueueTest.java:37)
+
+com.cl.it.queue.impl.CustomQueueTest.testDequeue()  Time elapsed: 0.001 sec  <<< FAILURE!
+java.lang.Error: Unresolved compilation problems: 
+	Test cannot be resolved to a type
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	The method assertEquals(int, int) is undefined for the type CustomQueueTest<T>
+	at com.cl.it.queue.impl.CustomQueueTest.testDequeue(CustomQueueTest.java:47)
+
